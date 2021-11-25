@@ -15,8 +15,8 @@ import (
 )
 
 const (
-	activeStatus = "active"
-	tableName    = "contactsFredy"
+	createdStatus = "created"
+	tableName     = "contactsFredy"
 )
 
 type (
@@ -55,7 +55,7 @@ func HandleLambdaEvent(ur UserRequest) error {
 		log.Printf("error inserting contact: %v", err)
 		return err
 	}
-	userRetrieved, err := retrieveContact(ctx, svc, userInserted.ID, activeStatus)
+	userRetrieved, err := retrieveContact(ctx, svc, userInserted.ID, createdStatus)
 	if err != nil {
 		log.Printf("error getting user information: %v", err)
 		return err
@@ -120,7 +120,7 @@ func createTable(ctx context.Context, svc *dynamodb.Client) error {
 func insertContact(ctx context.Context, svc *dynamodb.Client, r UserRequest) (User, error) {
 	key := key{
 		ID:     uuid.New().String(),
-		Status: activeStatus,
+		Status: createdStatus,
 	}
 	user := User{
 		key:         key,
