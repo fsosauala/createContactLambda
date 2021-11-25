@@ -1,24 +1,41 @@
 package main
 
 import (
-	"fmt"
+	"log"
+	"os"
 
 	"github.com/aws/aws-lambda-go/lambda"
+	"github.com/google/uuid"
 )
 
-type MyEvent struct {
-	Name string `json:"What is your name?"`
-	Age  int    `json:"How old are you?"`
+const (
+	activeStatus = "active"
+)
+
+type UserRequest struct {
+	FirstName string `json:"firstName"`
+	LastName  int    `json:"lastName"`
 }
 
-type MyResponse struct {
-	Message string `json:"Answer:"`
+type User struct {
+	ID     string `json:"id"`
+	Status string `json:"status"`
+	UserRequest
 }
 
-func HandleLambdaEvent(event MyEvent) (MyResponse, error) {
-	return MyResponse{
-		Message: fmt.Sprintf("%s is %d years old!", event.Name, event.Age),
-	}, nil
+func HandleLambdaEvent(ur UserRequest) error {
+	log.Printf("REGION: %s", os.Getenv("AWS_REGION"))
+	log.Println("ALL ENV VARS:")
+	for _, element := range os.Environ() {
+		log.Println(element)
+	}
+	user := User{
+		ID:          uuid.New().String(),
+		Status:      activeStatus,
+		UserRequest: ur,
+	}
+	log.Println(user)
+	return nil
 }
 
 func main() {
