@@ -14,7 +14,7 @@ const (
 
 type UserRequest struct {
 	FirstName string `json:"firstName"`
-	LastName  int    `json:"lastName"`
+	LastName  string `json:"lastName"`
 }
 
 type User struct {
