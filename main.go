@@ -1,15 +1,20 @@
 package main
 
 import (
+	"context"
+	"fmt"
 	"log"
 	"os"
 
 	"github.com/aws/aws-lambda-go/lambda"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/google/uuid"
 )
 
 const (
 	activeStatus = "active"
+	tableName    = "contactsFredy"
 )
 
 type UserRequest struct {
@@ -24,10 +29,29 @@ type User struct {
 }
 
 func HandleLambdaEvent(ur UserRequest) error {
-	log.Printf("REGION: %s", os.Getenv("AWS_REGION"))
-	log.Println("ALL ENV VARS:")
-	for _, element := range os.Environ() {
-		log.Println(element)
+	cfg, err := config.LoadDefaultConfig(context.TODO(), func(opts *config.LoadOptions) error {
+		opts.Region = os.Getenv("AWS_REGION")
+		return nil
+	})
+	if err != nil {
+		log.Printf("error loading dynamo configuration: %v", err)
+		return err
+	}
+	svc := dynamodb.NewFromConfig(cfg)
+	p := dynamodb.NewListTablesPaginator(svc, nil, func(o *dynamodb.ListTablesPaginatorOptions) {
+		o.StopOnDuplicateToken = true
+	})
+
+	for p.HasMorePages() {
+		out, err := p.NextPage(context.TODO())
+		if err != nil {
+			log.Printf("error getting paget next: %v", err)
+			return err
+		}
+
+		for _, tn := range out.TableNames {
+			fmt.Println(tn)
+		}
 	}
 	user := User{
 		ID:          uuid.New().String(),
