@@ -8,7 +8,6 @@ import (
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/google/uuid"
@@ -34,34 +33,27 @@ type (
 	}
 )
 
-func HandleLambdaEvent(ur UserRequest) error {
-	ctx := context.Background()
+func HandleLambdaEvent(ctx context.Context, ur UserRequest) (string, error) {
 	cfg, err := config.LoadDefaultConfig(ctx, func(opts *config.LoadOptions) error {
 		opts.Region = os.Getenv("AWS_REGION")
 		return nil
 	})
 	if err != nil {
 		log.Printf("error loading dynamo configuration: %v", err)
-		return err
+		return "", err
 	}
 	svc := dynamodb.NewFromConfig(cfg)
 	err = checkOrCreateDatabase(ctx, svc)
 	if err != nil {
 		log.Printf("error retrieving database information: %v", err)
-		return err
+		return "", err
 	}
 	userInserted, err := insertContact(ctx, svc, ur)
 	if err != nil {
 		log.Printf("error inserting contact: %v", err)
-		return err
+		return "", err
 	}
-	userRetrieved, err := retrieveContact(ctx, svc, userInserted.ID, createdStatus)
-	if err != nil {
-		log.Printf("error getting user information: %v", err)
-		return err
-	}
-	log.Printf("Compare users.\nInserted: %v\nRetrieved: %v", userInserted, userRetrieved)
-	return nil
+	return userInserted.ID, nil
 }
 
 func main() {
@@ -96,23 +88,19 @@ func createTable(ctx context.Context, svc *dynamodb.Client) error {
 				AttributeName: aws.String("id"),
 				AttributeType: types.ScalarAttributeTypeS,
 			},
-			{
-				AttributeName: aws.String("status"),
-				AttributeType: types.ScalarAttributeTypeS,
-			},
 		},
 		KeySchema: []types.KeySchemaElement{
 			{
 				AttributeName: aws.String("id"),
 				KeyType:       types.KeyTypeHash,
 			},
-			{
-				AttributeName: aws.String("status"),
-				KeyType:       types.KeyTypeRange,
-			},
 		},
 		TableName:   aws.String(tableName),
-		BillingMode: types.BillingModePayPerRequest,
+		BillingMode: types.BillingModeProvisioned,
+		ProvisionedThroughput: &types.ProvisionedThroughput{
+			ReadCapacityUnits:  aws.Int64(1),
+			WriteCapacityUnits: aws.Int64(1),
+		},
 	})
 	return err
 }
@@ -138,31 +126,6 @@ func userToDynamoType(user User) *dynamodb.PutItemInput {
 		TableName: aws.String(tableName),
 		Item:      item,
 	}
-}
-
-func retrieveContact(ctx context.Context, svc *dynamodb.Client, userID, status string) (User, error) {
-	key := key{
-		ID:     userID,
-		Status: status,
-	}
-	avs, err := attributevalue.MarshalMap(key)
-	if err != nil {
-		panic(err)
-	}
-
-	out, err := svc.GetItem(ctx, &dynamodb.GetItemInput{
-		TableName: aws.String(tableName),
-		Key:       avs,
-	})
-	if err != nil {
-		return User{}, err
-	}
-	var u User
-	err = attributevalue.UnmarshalMap(out.Item, &u)
-	if err != nil {
-		return User{}, err
-	}
-	return u, nil
 }
 
 func userToAttributeMap(user User) map[string]types.AttributeValue {
